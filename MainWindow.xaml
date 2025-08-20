@@ -1,0 +1,103 @@
+<Window x:Class="MVArchive.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:MVArchive.Controls"
+    Title="MV Archive - Projects" Height="1000" Width="1200"
+    WindowStartupLocation="CenterScreen"
+    Icon="resources/icon.ico">
+
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <TextBlock Grid.Row="0" Text="MV Archive - Projects Database"
+           FontSize="24" FontWeight="Bold" Margin="0,0,0,20"
+           HorizontalAlignment="Center"/>
+
+    <!-- Combined Toolbar for Connection and Archive Controls -->
+    <!--
+      ToolBar options in WPF:
+        - ToolBar can contain any UIElement (Buttons, ComboBoxes, TextBoxes, etc.)
+        - ToolBar has properties like Orientation (Horizontal/Vertical), Band, BandIndex, IsOverflowOpen, etc.
+        - ToolBar supports overflow for items that don't fit.
+        - ToolBar can be placed inside a ToolBarTray for multiple toolbars.
+        - ToolBar styling can be customized via ToolBar.Resources.
+        - ToolBar supports Command bindings for MVVM.
+        - ToolBar can have separators (<Separator/>) for grouping.
+        - ToolBar can be themed and styled.
+        - ToolBar can be docked or floated if inside a ToolBarTray.
+    -->
+    <ToolBar Grid.Row="1" Margin="0,0,0,20">
+      <!-- Connection Controls -->
+      <Button x:Name="btnTestConnection" Content="Test Connection"
+          Width="120" Height="30" Margin="0,0,10,0" Click="BtnTestConnection_Click"/>
+      <Button x:Name="btnRefresh" Content="Refresh Data"
+          Width="120" Height="30" Margin="0,0,20,0" Click="BtnRefresh_Click"/>
+      <TextBlock x:Name="txtConnectionStatus" Text="Connection Status: Unknown"
+             VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,30,0"/>
+
+      <!-- Archive Controls -->
+      <Separator/>
+      <Button x:Name="btnArchiveConfig" Content="Archive Configuration"
+          Width="150" Height="30" Margin="0,0,10,0" Click="BtnArchiveConfig_Click"/>
+      <Button x:Name="btnArchiveSelected" Content="Archive Selected Project"
+          Width="150" Height="30" Margin="0,0,10,0" Click="BtnArchiveSelected_Click"/>
+      <Button x:Name="btnArchiveAll" Content="Archive All Projects"
+          Width="150" Height="30" Margin="0,0,10,0" Click="BtnArchiveAll_Click"/>
+      <TextBlock x:Name="txtArchiveStatus" Text="Archive: Ready"
+                 VerticalAlignment="Center" FontWeight="Bold" Margin="20,0,0,0"/>
+    </ToolBar>
+
+    <!-- DataGrid for Projects -->
+    <DataGrid x:Name="dgProjects" Grid.Row="3" Margin="0,0,0,10"
+          AutoGenerateColumns="False"
+          IsReadOnly="True"
+          GridLinesVisibility="All"
+          HeadersVisibility="All"
+          CanUserResizeRows="False"
+          CanUserAddRows="False"
+          CanUserDeleteRows="False"
+          SelectionMode="Single"
+          SelectionUnit="FullRow">
+
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="LinkID" Binding="{Binding LinkID}" Width="80"/>
+        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
+        <DataGridTextColumn Header="Job Number" Binding="{Binding JobNumber}" Width="100"/>
+        <DataGridTextColumn Header="Job Description" Binding="{Binding JobDescription}" Width="200"/>
+        <DataGridTextColumn Header="Project Manager" Binding="{Binding ProjectManager}" Width="120"/>
+        <DataGridTextColumn Header="Architect" Binding="{Binding Architect}" Width="100"/>
+        <DataGridTextColumn Header="Contractor" Binding="{Binding Contractor}" Width="100"/>
+        <DataGridTextColumn Header="Project Budget" Binding="{Binding ProjectBudget, StringFormat=C}" Width="100"/>
+        <DataGridTextColumn Header="Total Cost" Binding="{Binding TotalProjectCost, StringFormat=C}" Width="100"/>
+        <DataGridTextColumn Header="Start Date" Binding="{Binding ScheduledStartDate, StringFormat=yyyy-MM-dd}" Width="100"/>
+        <DataGridTextColumn Header="Completion Date" Binding="{Binding ScheduledCompletionDate, StringFormat=yyyy-MM-dd}" Width="100"/>
+        <DataGridTextColumn Header="Date Created" Binding="{Binding DateCreated, StringFormat=yyyy-MM-dd}" Width="100"/>
+        <DataGridTextColumn Header="Inactive" Binding="{Binding IsInactive}" Width="60"/>
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <!-- Collapsible Logging Panel at Bottom -->
+    <Expander Grid.Row="4" Header="Detailed Logging" IsExpanded="False">
+      <local:LoggingPanel x:Name="loggingPanel" Height="250"/>
+    </Expander>
+
+    <!-- Status Bar (Bottom Most) -->
+    <StatusBar Grid.Row="5" Margin="0,10,0,0">
+      <StatusBarItem>
+        <TextBlock x:Name="txtStatus" Text="Ready"/>
+      </StatusBarItem>
+      <Separator/>
+      <StatusBarItem>
+        <TextBlock x:Name="txtRecordCount" Text="Records: 0"/>
+      </StatusBarItem>
+    </StatusBar>
+  </Grid>
+</Window>
