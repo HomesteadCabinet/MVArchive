@@ -1,0 +1,477 @@
+<ProjectArchiveManifest manifest_version="1.0.0" domain="ProjectArchive">
+  <!-- ========= Runtime parameters ========= -->
+  <Parameters>
+    <!-- Root project being archived (nvarchar LinkID) -->
+    <Parameter name="ProjectID" value="@ProjectID" />
+    <!-- One or more libraries to include (comma-separated or repeated) -->
+    <Parameter name="LibraryID" value="@LibraryID" />
+  </Parameters>
+
+  <!-- ========= Catalogs (reference / template / “whole table”) ========= -->
+  <Catalogs>
+    <!-- System/user catalogs mirrored in full (no project link) -->
+    <Catalog name="ToolFiles" table="ToolFiles" pk="LinkID" mode="changes_only" />
+    <Catalog name="ProcessingStations" table="ProcessingStations" pk="LinkID" mode="changes_only" />
+    <Catalog name="Sheets" table="Sheets" pk="LinkID" mode="changes_only" />
+    <Catalog name="Materials" table="Materials" pk="LinkID" mode="changes_only" />
+
+    <Catalog name="Employees" table="Employees" pk="LinkID" mode="changes_only" />
+    <Catalog name="EmployeeSecure" table="EmployeeSecure" pk="LinkID" mode="changes_only" />
+    <Catalog name="EmployeeLogin" table="EmployeeLogin" pk="LinkID" mode="changes_only" />
+
+    <Catalog name="Departments" table="Departments" pk="LinkID" mode="changes_only" />
+    <Catalog name="Vendors" table="Vendors" pk="LinkID" mode="changes_only" />
+    <Catalog name="ActivityStations" table="ActivityStations" pk="LinkID" mode="changes_only" />
+    <Catalog name="Shifts" table="Shifts" pk="LinkID" mode="changes_only" />
+    <Catalog name="ShiftsActivityStations" table="ShiftsActivityStations" pk="LinkID" mode="changes_only" />
+
+    <!-- <Catalog name="TimeClockSettings" table="TimeClockSettings" pk="LinkID" mode="all_rows" /> -->
+    <Catalog name="MicrovellumSystem" table="MicrovellumSystem" pk="LinkID" mode="all_rows" />
+
+    <!-- Global/singleton table -->
+    <Catalog name="Factory" table="Factory" pk="LinkID" mode="all_rows" />
+
+    <!-- Library & library-scoped catalogs -->
+    <Catalog name="Libraries" table="Libraries" pk="LinkID" mode="changes_only">
+      <Filter where="Libraries.LinkID IN (@LibraryID)" />
+    </Catalog>
+
+    <Catalog name="Categories" table="Categories" pk="LinkID" mode="changes_only">
+      <Filter where="Categories.LinkIDLibrary IN (@LibraryID)" />
+    </Catalog>
+
+    <!-- Template content (by convention Type=1 for templates) -->
+    <Catalog name="Products" table="Products" pk="LinkID" mode="changes_only">
+      <Filter where="Products.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="Products.Type = 1" />
+    </Catalog>
+
+    <Catalog name="Subassemblies" table="Subassemblies" pk="LinkID" mode="changes_only">
+      <Filter where="Subassemblies.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="Subassemblies.Type = 1" />
+    </Catalog>
+
+    <Catalog name="SpecificationGroups" table="SpecificationGroups" pk="LinkID" mode="changes_only">
+      <Filter where="SpecificationGroups.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="SpecificationGroups.Type = 6" />
+    </Catalog>
+
+    <!-- Template file catalogs (exist in schema; keep Type=1 for template rows) -->
+    <Catalog name="CutPartsFiles" table="CutPartsFiles" pk="LinkID" mode="changes_only" binary="true">
+      <Filter where="CutPartsFiles.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="CutPartsFiles.Type = 6" />
+    </Catalog>
+
+    <Catalog name="EdgebandFiles" table="EdgebandFiles" pk="LinkID" mode="changes_only" binary="true">
+      <Filter where="EdgebandFiles.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="EdgebandFiles.Type = 6" />
+    </Catalog>
+
+    <Catalog name="HardwareFiles" table="HardwareFiles" pk="LinkID" mode="changes_only" binary="true">
+      <Filter where="HardwareFiles.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="HardwareFiles.Type = 6" />
+    </Catalog>
+
+    <Catalog name="DoorWizardFiles" table="DoorWizardFiles" pk="LinkID" mode="changes_only" binary="true">
+      <Filter where="DoorWizardFiles.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="DoorWizardFiles.Type = 6" />
+    </Catalog>
+
+    <Catalog name="GlobalFiles" table="GlobalFiles" pk="LinkID" mode="changes_only" binary="true">
+      <Filter where="GlobalFiles.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="GlobalFiles.Type = 6" />
+    </Catalog>
+
+    <Catalog name="ProjectWizardFiles" table="ProjectWizardFiles" pk="LinkID" mode="changes_only" binary="true">
+      <Filter where="ProjectWizardFiles.LinkIDLibrary IN (@LibraryID)" />
+      <Filter where="ProjectWizardFiles.Type = 6" />
+    </Catalog>
+  </Catalogs>
+
+
+
+
+  <!-- ========= Project root & traversal rules ========= -->
+  <Root entity="Projects" key="LinkID">
+    <Selector column="LinkID" value="@ProjectID" />
+    <Relationships>
+
+      <!-- Categories belong to a project -->
+      <Relationship from="Categories" to="Categories" type="many-to-1">
+        <ViaLink lhs="Categories.LinkIDParent" rhs="Projects.LinkID" />
+      </Relationship>
+
+      <!-- Locations belong to a project -->
+      <Relationship from="Locations" to="Projects" type="many-to-1">
+        <ViaLink lhs="Locations.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="Locations.LinkIDCategory" rhs="Categories.LinkID" />
+      </Relationship>
+
+      <!-- Products belong to a project; carry SpecGroup reference -->
+      <Relationship from="Products" to="Projects" type="many-to-1">
+        <ViaLink lhs="Products.LinkIDProject" rhs="Projects.LinkID" />
+
+        <!-- Product → SpecificationGroups (if present) -->
+        <Relationship from="Products" to="SpecificationGroups" type="many-to-1">
+          <ViaLink lhs="Products.LinkIDSpecificationGroup" rhs="SpecificationGroups.LinkID" />
+        </Relationship>
+
+        <!-- Optional grouping -->
+        <Relationship from="Products" to="ProductGroups" type="many-to-1">
+          <ViaLink lhs="Products.LinkIDProductGroup" rhs="ProductGroups.LinkID" />
+        </Relationship>
+
+        <!-- Optional mapping -->
+        <Relationship from="ProductMap" to="Products" type="many-to-1">
+          <ViaLink lhs="ProductMap.LinkIDProduct" rhs="Products.LinkID" />
+        </Relationship>
+
+        <!-- Workorders referenced by Products -->
+        <!-- Note: Products.LinkIDWorkOrder points to Workorders.LinkID -->
+        <!-- For nested relationships, LHS is child column, RHS is parent column -->
+        <Relationship from="Workorders" to="Products" type="many-to-1">
+          <ViaLink lhs="Workorders.LinkID" rhs="Products.LinkIDWorkOrder" />
+        </Relationship>
+      </Relationship>
+
+      <!-- Subassemblies under products and nested subassemblies -->
+      <Relationship from="Subassemblies" to="Products" type="many-to-1">
+        <ViaLink lhs="Subassemblies.LinkIDParentProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="Subassemblies.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship>
+
+      <Relationship from="Subassemblies" to="Subassemblies" type="many-to-1">
+        <ViaLink lhs="Subassemblies.LinkIDParentSubassembly" rhs="Subassemblies.LinkID" />
+      </Relationship>
+
+      <!-- Parts belong to projects -->
+      <Relationship from="Parts" to="Projects" type="many-to-1">
+        <ViaLink lhs="Parts.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship>
+
+
+      <!-- Workorders belong to projects via Products (Workorders don't have LinkIDProject) -->
+      <!-- Workorders are found through Products that reference them -->
+      <!-- This is handled as a nested relationship under Products -->
+
+      <!-- WorkOrderBatches belong to workorders -->
+      <Relationship from="WorkOrderBatches" to="Workorders" type="many-to-1">
+        <ViaLink lhs="WorkOrderBatches.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- WorkOrderActivities belong to projects, parts, subassemblies, and workorders -->
+      <!-- Note: WorkOrderActivities does NOT have LinkIDProduct column (only has LinkProduct which is not a LinkID) -->
+      <!-- Use OR logic: include if linked via ANY of these paths -->
+      <Relationship from="WorkOrderActivities" to="Projects" type="many-to-1" linkLogic="OR">
+        <ViaLink lhs="WorkOrderActivities.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="WorkOrderActivities.LinkIDPart" rhs="Parts.LinkID" />
+        <ViaLink lhs="WorkOrderActivities.LinkIDSubassembly" rhs="Subassemblies.LinkID" />
+        <ViaLink lhs="WorkOrderActivities.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- ProjectWorkOrderActivities belong to projects, products, workorders, and workorder activities -->
+      <Relationship from="ProjectWorkOrderActivities" to="Projects" type="many-to-1">
+        <ViaLink lhs="ProjectWorkOrderActivities.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="ProjectWorkOrderActivities.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="ProjectWorkOrderActivities.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="ProjectWorkOrderActivities.LinkIDWorkOrderActivity" rhs="WorkOrderActivities.LinkID" />
+      </Relationship>
+
+      <!-- ScheduledWorkOrderActivities belong to workorders and workorder activities -->
+      <Relationship from="ScheduledWorkOrderActivities" to="Workorders" type="many-to-1">
+        <ViaLink lhs="ScheduledWorkOrderActivities.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="ScheduledWorkOrderActivities.LinkIDWorkOrderActivity" rhs="WorkOrderActivities.LinkID" />
+      </Relationship>
+
+      <!-- Bundles belong to projects -->
+      <Relationship from="Bundles" to="Projects" type="many-to-1">
+        <ViaLink lhs="Bundles.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship>
+
+      <!-- BundleItems belong to bundles, products, projects, and workorders -->
+      <Relationship from="BundleItems" to="Bundles" type="many-to-1">
+        <ViaLink lhs="BundleItems.LinkIDBundle" rhs="Bundles.LinkID" />
+        <ViaLink lhs="BundleItems.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="BundleItems.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="BundleItems.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- OrderLineItems belong to products -->
+      <Relationship from="OrderLineItems" to="Products" type="many-to-1">
+        <ViaLink lhs="OrderLineItems.LinkIDProduct" rhs="Products.LinkID" />
+      </Relationship>
+
+      <!-- PlacedSheets belong to workorders and workorder batches -->
+      <Relationship from="PlacedSheets" to="Workorders" type="many-to-1">
+        <ViaLink lhs="PlacedSheets.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="PlacedSheets.LinkIDWorkOrderBatch" rhs="WorkOrderBatches.LinkID" />
+      </Relationship>
+
+      <!-- PlacedSheetsVendors belong to workorders -->
+      <Relationship from="PlacedSheetsVendors" to="Workorders" type="many-to-1">
+        <ViaLink lhs="PlacedSheetsVendors.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- ShippingTickets don't have LinkIDProject - they link via ShippingItems which link to projects -->
+      <!-- ShippingTickets are handled indirectly through ShippingItems relationship -->
+
+      <!-- Pallets belong to locations and shipping tickets -->
+      <Relationship from="Pallets" to="Locations" type="many-to-1">
+        <ViaLink lhs="Pallets.LinkIDLocation" rhs="Locations.LinkID" />
+        <ViaLink lhs="Pallets.LinkIDShippingTicket" rhs="ShippingTickets.LinkID" />
+      </Relationship>
+
+      <!-- PalletsProducts belong to pallets and products -->
+      <Relationship from="PalletsProducts" to="Pallets" type="many-to-1">
+        <ViaLink lhs="PalletsProducts.LinkIDPallet" rhs="Pallets.LinkID" />
+        <ViaLink lhs="PalletsProducts.LinkIDProduct" rhs="Products.LinkID" />
+      </Relationship>
+
+      <!-- ShippingItems belong to projects, parts, subassemblies, pallets, shipping tickets, and workorders -->
+      <!-- Note: ShippingItems does NOT have LinkIDProduct column (only has LinkIDParentProduct which is not a proper LinkID) -->
+      <!-- <Relationship from="ShippingItems" to="Projects" type="many-to-1" linkLogic="OR">
+        <ViaLink lhs="ShippingItems.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="ShippingItems.LinkIDPart" rhs="Parts.LinkID" />
+        <ViaLink lhs="ShippingItems.LinkIDSubassembly" rhs="Subassemblies.LinkID" />
+        <ViaLink lhs="ShippingItems.LinkIDPallet" rhs="Pallets.LinkID" />
+        <ViaLink lhs="ShippingItems.LinkIDShippingTicket" rhs="ShippingTickets.LinkID" />
+        <ViaLink lhs="ShippingItems.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship> -->
+
+      <!-- ProductCosts belong to projects, products, and locations -->
+      <!-- <Relationship from="ProductCosts" to="Projects" type="many-to-1">
+        <ViaLink lhs="ProductCosts.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="ProductCosts.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="ProductCosts.LinkIDLocation" rhs="Locations.LinkID" />
+      </Relationship> -->
+
+      <!-- ProductPrices belong to projects, products, and locations -->
+      <!-- <Relationship from="ProductPrices" to="Projects" type="many-to-1">
+        <ViaLink lhs="ProductPrices.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="ProductPrices.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="ProductPrices.LinkIDLocation" rhs="Locations.LinkID" />
+      </Relationship> -->
+
+      <!-- Prompts belong to products, subassemblies, and workorders -->
+      <!-- <Relationship from="Prompts" to="Products" type="many-to-1">
+        <ViaLink lhs="Prompts.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="Prompts.LinkIDSubassembly" rhs="Subassemblies.LinkID" />
+        <ViaLink lhs="Prompts.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship> -->
+
+      <!-- ProductsPrompts belong to products, subassemblies, workorders, and prompts -->
+      <!-- <Relationship from="ProductsPrompts" to="Products" type="many-to-1">
+        <ViaLink lhs="ProductsPrompts.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="ProductsPrompts.LinkIDSubassembly" rhs="Subassemblies.LinkID" />
+        <ViaLink lhs="ProductsPrompts.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="ProductsPrompts.LinkIDPrompt" rhs="Prompts.LinkID" />
+      </Relationship> -->
+
+      <!-- PromptMap belongs to products -->
+      <!-- <Relationship from="PromptMap" to="Products" type="many-to-1">
+        <ViaLink lhs="PromptMap.LinkIDProduct" rhs="Products.LinkID" />
+      </Relationship> -->
+
+      <!-- Project-scoped operational data -->
+      <Relationship from="Activities" to="Projects" type="many-to-1">
+        <ViaLink lhs="Activities.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship>
+
+      <Relationship from="Materials" to="Projects" type="many-to-1">
+        <ViaLink lhs="Materials.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship>
+
+      <!-- Edgebanding can link to Projects directly, or via Parts, or via Workorders - use OR logic to include all -->
+      <!-- <Relationship from="Edgebanding" to="Projects" type="many-to-1" linkLogic="OR">
+        <ViaLink lhs="Edgebanding.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="Edgebanding.LinkIDPart" rhs="Parts.LinkID" />
+        <ViaLink lhs="Edgebanding.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship> -->
+
+      <!-- Hardware can link to Projects directly, or via Parts, or via Workorders - use OR logic to include all -->
+      <!-- <Relationship from="Hardware" to="Projects" type="many-to-1" linkLogic="OR">
+        <ViaLink lhs="Hardware.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="Hardware.LinkIDPart" rhs="Parts.LinkID" />
+        <ViaLink lhs="Hardware.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship> -->
+
+      <Relationship from="ProjectProperties" to="Projects" type="many-to-1">
+        <ViaLink lhs="ProjectProperties.LinkIDProject" rhs="Projects.LinkID" />
+        <!-- Property may reference a location -->
+        <Relationship from="ProjectProperties" to="Locations" type="many-to-1">
+          <ViaLink lhs="ProjectProperties.LinkIDLocation" rhs="Locations.LinkID" />
+        </Relationship>
+      </Relationship>
+
+      <Relationship from="PurchaseOrders" to="Projects" type="many-to-1">
+        <ViaLink lhs="PurchaseOrders.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship>
+
+      <!-- PurchasedMaterial belongs to projects, products, parts, purchase orders, materials, and workorders -->
+      <Relationship from="PurchasedMaterial" to="PurchaseOrders" type="many-to-1">
+        <ViaLink lhs="PurchasedMaterial.LinkIDPurchaseOrder" rhs="PurchaseOrders.LinkID" />
+        <ViaLink lhs="PurchasedMaterial.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="PurchasedMaterial.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="PurchasedMaterial.LinkIDPart" rhs="Parts.LinkID" />
+        <ViaLink lhs="PurchasedMaterial.LinkIDMaterial" rhs="Materials.LinkID" />
+        <ViaLink lhs="PurchasedMaterial.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- ReceivedMaterials belong to purchase orders, purchased material, and materials -->
+      <Relationship from="ReceivedMaterials" to="PurchaseOrders" type="many-to-1">
+        <ViaLink lhs="ReceivedMaterials.LinkIDPurchaseOrder" rhs="PurchaseOrders.LinkID" />
+        <ViaLink lhs="ReceivedMaterials.LinkIDPurchasedMaterial" rhs="PurchasedMaterial.LinkID" />
+        <ViaLink lhs="ReceivedMaterials.LinkIDMaterial" rhs="Materials.LinkID" />
+      </Relationship>
+
+      <!-- ReceivedMaterialsPurchasedMaterial belongs to received materials and purchased material -->
+      <Relationship from="ReceivedMaterialsPurchasedMaterial" to="ReceivedMaterials" type="many-to-1">
+        <ViaLink lhs="ReceivedMaterialsPurchasedMaterial.LinkIDReceivedMaterial" rhs="ReceivedMaterials.LinkID" />
+        <ViaLink lhs="ReceivedMaterialsPurchasedMaterial.LinkIDPurchasedMaterial" rhs="PurchasedMaterial.LinkID" />
+      </Relationship>
+
+      <!-- MaterialCheckout belongs to workorders and received materials -->
+      <Relationship from="MaterialCheckout" to="Workorders" type="many-to-1">
+        <ViaLink lhs="MaterialCheckout.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="MaterialCheckout.LinkIDReceivedMaterial" rhs="ReceivedMaterials.LinkID" />
+      </Relationship>
+
+      <!-- MaterialCostBreaks belong to materials -->
+      <Relationship from="MaterialCostBreaks" to="Materials" type="many-to-1">
+        <ViaLink lhs="MaterialCostBreaks.LinkIDMaterial" rhs="Materials.LinkID" />
+      </Relationship>
+
+      <!-- MaterialStorageLocations belong to categories -->
+      <Relationship from="MaterialStorageLocations" to="Categories" type="many-to-1">
+        <ViaLink lhs="MaterialStorageLocations.LinkIDCategory" rhs="Categories.LinkID" />
+      </Relationship>
+
+      <!-- MaterialsVendors belong to materials -->
+      <Relationship from="MaterialsVendors" to="Materials" type="many-to-1">
+        <ViaLink lhs="MaterialsVendors.LinkIDMaterial" rhs="Materials.LinkID" />
+      </Relationship>
+
+      <!-- OptimizationResults belong to workorders, workorder batches, materials, and parts -->
+      <Relationship from="OptimizationResults" to="Workorders" type="many-to-1">
+        <ViaLink lhs="OptimizationResults.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="OptimizationResults.LinkIDWorkOrderBatch" rhs="WorkOrderBatches.LinkID" />
+        <ViaLink lhs="OptimizationResults.LinkIDMaterial" rhs="Materials.LinkID" />
+        <ViaLink lhs="OptimizationResults.LinkIDPart" rhs="Parts.LinkID" />
+      </Relationship>
+
+      <!-- NestScrap belongs to workorder batches -->
+      <Relationship from="NestScrap" to="WorkOrderBatches" type="many-to-1">
+        <ViaLink lhs="NestScrap.LinkIDWorkOrderBatch" rhs="WorkOrderBatches.LinkID" />
+      </Relationship>
+
+      <!-- NestScrapBin belongs to categories -->
+      <Relationship from="NestScrapBin" to="Categories" type="many-to-1">
+        <ViaLink lhs="NestScrapBin.LinkIDCategory" rhs="Categories.LinkID" />
+      </Relationship>
+
+      <!-- SawStacks belong to workorders and workorder batches -->
+      <Relationship from="SawStacks" to="Workorders" type="many-to-1">
+        <ViaLink lhs="SawStacks.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="SawStacks.LinkIDWorkOrderBatch" rhs="WorkOrderBatches.LinkID" />
+      </Relationship>
+
+      <!-- SheetSets belong to projects -->
+      <Relationship from="SheetSets" to="Projects" type="many-to-1">
+        <ViaLink lhs="SheetSets.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship>
+
+      <!-- BluePrintViews belong to projects, locations, and categories -->
+      <!-- <Relationship from="BluePrintViews" to="Projects" type="many-to-1">
+        <ViaLink lhs="BluePrintViews.LinkIDProject" rhs="Projects.LinkID" />
+        <ViaLink lhs="BluePrintViews.LinkIDLocation" rhs="Locations.LinkID" />
+        <ViaLink lhs="BluePrintViews.LinkIDCategory" rhs="Categories.LinkID" />
+      </Relationship> -->
+
+      <!-- TiffDrawings belong to projects -->
+      <!-- <Relationship from="TiffDrawings" to="Projects" type="many-to-1">
+        <ViaLink lhs="TiffDrawings.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship> -->
+
+      <!-- AutoCADDrawings don't have LinkIDProject - they only have LinkIDCategory -->
+      <!-- They are not project-scoped, skip for now -->
+
+      <!-- FaceFrameImages belong to products and workorders -->
+      <Relationship from="FaceFrameImages" to="Products" type="many-to-1">
+        <ViaLink lhs="FaceFrameImages.LinkIDProduct" rhs="Products.LinkID" />
+        <ViaLink lhs="FaceFrameImages.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- FaceFrameImagesParts belong to face frame images, parts, and workorders -->
+      <Relationship from="FaceFrameImagesParts" to="FaceFrameImages" type="many-to-1">
+        <ViaLink lhs="FaceFrameImagesParts.LinkIDFaceFrameImage" rhs="FaceFrameImages.LinkID" />
+        <ViaLink lhs="FaceFrameImagesParts.LinkIDPart" rhs="Parts.LinkID" />
+        <ViaLink lhs="FaceFrameImagesParts.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- FaceFrameImagesSubassemblies belong to face frame images, subassemblies, and workorders -->
+      <Relationship from="FaceFrameImagesSubassemblies" to="FaceFrameImages" type="many-to-1">
+        <ViaLink lhs="FaceFrameImagesSubassemblies.LinkIDFaceFrameImage" rhs="FaceFrameImages.LinkID" />
+        <ViaLink lhs="FaceFrameImagesSubassemblies.LinkIDSubassembly" rhs="Subassemblies.LinkID" />
+        <ViaLink lhs="FaceFrameImagesSubassemblies.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship>
+
+      <!-- ErrorMessages belong to workorders and workorder batches -->
+      <Relationship from="ErrorMessages" to="Workorders" type="many-to-1">
+        <ViaLink lhs="ErrorMessages.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+        <ViaLink lhs="ErrorMessages.LinkIDWorkOrderBatch" rhs="WorkOrderBatches.LinkID" />
+      </Relationship>
+
+      <!-- HardwareProcessingStations belong to workorders -->
+      <!-- <Relationship from="HardwareProcessingStations" to="Workorders" type="many-to-1">
+        <ViaLink lhs="HardwareProcessingStations.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship> -->
+
+      <!-- PartsProcessingStations belong to parts and workorders -->
+      <!-- <Relationship from="PartsProcessingStations" to="Parts" type="many-to-1">
+        <ViaLink lhs="PartsProcessingStations.LinkIDPart" rhs="Parts.LinkID" />
+        <ViaLink lhs="PartsProcessingStations.LinkIDWorkOrder" rhs="Workorders.LinkID" />
+      </Relationship> -->
+
+      <!-- SalesOrders belong to projects -->
+      <!-- <Relationship from="SalesOrders" to="Projects" type="many-to-1">
+        <ViaLink lhs="SalesOrders.LinkIDProject" rhs="Projects.LinkID" />
+      </Relationship> -->
+
+      <!-- Project-scoped Spec Groups and their referenced file rows -->
+      <Relationship from="SpecificationGroups" to="Projects" type="many-to-1">
+        <ViaLink lhs="SpecificationGroups.LinkIDProject" rhs="Projects.LinkID" />
+
+        <Relationship from="SpecificationGroups" to="GlobalFiles" type="many-to-1">
+          <ViaLink lhs="SpecificationGroups.LinkIDGlobalFileName" rhs="GlobalFiles.LinkID" />
+        </Relationship>
+
+        <Relationship from="SpecificationGroups" to="CutPartsFiles" type="many-to-1">
+          <ViaLink lhs="SpecificationGroups.LinkIDCutPartsFileName" rhs="CutPartsFiles.LinkID" />
+        </Relationship>
+
+        <Relationship from="SpecificationGroups" to="DoorWizardFiles" type="many-to-1">
+          <ViaLink lhs="SpecificationGroups.LinkIDDoorWizardFileName" rhs="DoorWizardFiles.LinkID" />
+        </Relationship>
+
+        <Relationship from="SpecificationGroups" to="EdgebandFiles" type="many-to-1">
+          <ViaLink lhs="SpecificationGroups.LinkIDEdgeBandFileName" rhs="EdgebandFiles.LinkID" />
+        </Relationship>
+
+        <Relationship from="SpecificationGroups" to="Factory" type="many-to-1">
+          <ViaLink lhs="SpecificationGroups.LinkIDFactoryFileName" rhs="Factory.LinkID" />
+        </Relationship>
+
+        <Relationship from="SpecificationGroups" to="HardwareFiles" type="many-to-1">
+          <ViaLink lhs="SpecificationGroups.LinkIDHardwareFileName" rhs="HardwareFiles.LinkID" />
+        </Relationship>
+
+        <Relationship from="SpecificationGroups" to="ProjectWizardFiles" type="many-to-1">
+          <ViaLink lhs="SpecificationGroups.LinkIDProjectWizardFileName" rhs="ProjectWizardFiles.LinkID" />
+        </Relationship>
+      </Relationship>
+    </Relationships>
+  </Root>
+
+  <!-- ========= Data integrity & orphans ========= -->
+  <Integrity enforce_fk_check="false" unexpected_row_policy="warn" orphan_link_policy="skip" />
+</ProjectArchiveManifest>

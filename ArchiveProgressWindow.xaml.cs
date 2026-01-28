@@ -35,7 +35,7 @@ namespace MVArchive
             txtElapsedTime.Text = $"Elapsed: {elapsed:hh\\:mm\\:ss}";
         }
 
-        public async Task StartArchiveAsync(string? projectId = null)
+        public async Task StartArchiveAsync(System.Collections.Generic.List<string> projectLinkIds)
         {
             try
             {
@@ -47,36 +47,24 @@ namespace MVArchive
 
                 var progress = new Progress<ArchiveProgress>(UpdateProgress);
 
-                ArchiveProgress result;
+                LogMessage($"Starting archive for {projectLinkIds.Count} selected projects");
+                var result = await _archiveService.ArchiveSelectedProjectsAsync(projectLinkIds, progress);
 
-                if (!string.IsNullOrEmpty(projectId))
-                {
-                    // Archive single project
-                    LogMessage($"Starting archive for project {projectId}");
-                    result = await _archiveService.ArchiveProjectAsync(projectId, progress);
-                }
-                else
-                {
-                    // Archive all projects
-                    LogMessage("Starting archive for all projects");
-                    result = await _archiveService.ArchiveAllProjectsAsync(progress);
-                }
-
-                // Archive completed
                 _timer.Stop();
                 btnCancel.IsEnabled = false;
                 btnClose.IsEnabled = true;
 
-                if (result.IsComplete)
+                var isFailure = result.Status != null && result.Status.StartsWith("Archive failed", StringComparison.OrdinalIgnoreCase);
+                if (!isFailure)
                 {
-                    LogMessage($"Archive completed successfully: {result.Status}");
-                    txtOverallStatus.Text = "Archive completed successfully!";
+                    LogMessage($"Archive completed: {result.Status}");
+                    txtOverallStatus.Text = result.Status;
                     txtOverallStatus.Foreground = System.Windows.Media.Brushes.Green;
                 }
                 else
                 {
                     LogMessage($"Archive failed: {result.Status}");
-                    txtOverallStatus.Text = "Archive failed!";
+                    txtOverallStatus.Text = result.Status;
                     txtOverallStatus.Foreground = System.Windows.Media.Brushes.Red;
                 }
             }

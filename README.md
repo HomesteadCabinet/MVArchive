@@ -133,9 +133,8 @@ MICROVELLUM_DB_NAME=your_database
 ### Archiving Projects
 1. **Configure Archive Settings** - Click "Archive Configuration" to set source/destination databases
 2. **Test Connections** - Verify both source and destination database connectivity
-3. **Archive Single Project** - Select a project and click "Archive Selected Project"
-4. **Archive All Projects** - Click "Archive All Projects" to archive everything
-5. **Monitor Progress** - Watch real-time progress in the archive progress window
+3. **Archive Selected Projects** - Select one or more projects in the left pane (Available) and click "Archive Selected"
+4. **Monitor Progress** - Watch real-time progress in the archive progress window
 
 ## Archive Process
 

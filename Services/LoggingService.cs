@@ -70,11 +70,31 @@ namespace MVArchive.Services
         private readonly Dispatcher _dispatcher;
         private bool _isEnabled = true;
         private int _maxEntries = 1000;
+        private readonly string _logDirectory;
+        private readonly string _currentLogFile;
 
         public LoggingService(Dispatcher dispatcher)
         {
             _dispatcher = dispatcher;
             _logEntries = new ObservableCollection<LogEntry>();
+
+            // Initialize disk logging directory: ./logs
+            try
+            {
+                var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                _logDirectory = System.IO.Path.Combine(baseDir, "logs");
+                if (!System.IO.Directory.Exists(_logDirectory))
+                {
+                    System.IO.Directory.CreateDirectory(_logDirectory);
+                }
+                var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                _currentLogFile = System.IO.Path.Combine(_logDirectory, $"app_{stamp}.log");
+            }
+            catch
+            {
+                _logDirectory = string.Empty;
+                _currentLogFile = string.Empty;
+            }
         }
 
         public ObservableCollection<LogEntry> LogEntries => _logEntries;
@@ -139,6 +159,24 @@ namespace MVArchive.Services
                 Message = message,
                 Details = details ?? string.Empty
             };
+
+            // Write to disk file best-effort
+            try
+            {
+                if (!string.IsNullOrEmpty(_currentLogFile))
+                {
+                    var line = $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] {entry.Category}: {entry.Message}";
+                    System.IO.File.AppendAllText(_currentLogFile, line + Environment.NewLine);
+                    if (!string.IsNullOrEmpty(entry.Details))
+                    {
+                        System.IO.File.AppendAllText(_currentLogFile, "  Details: " + entry.Details + Environment.NewLine);
+                    }
+                }
+            }
+            catch
+            {
+                // ignore disk logging errors
+            }
 
             _dispatcher.BeginInvoke(() =>
             {

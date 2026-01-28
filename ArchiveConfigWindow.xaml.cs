@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using MVArchive.Models;
 using MVArchive.Services;
+using WinForms = System.Windows.Forms;
 
 namespace MVArchive
 {
@@ -16,14 +17,14 @@ namespace MVArchive
         public ArchiveConfigWindow()
         {
             InitializeComponent();
+
+            // Initialize logging service BEFORE loading UI-bound values that reference it
+            _loggingService = new LoggingService(Dispatcher);
+            SetupLoggingEventHandlers();
+
             // Load current configuration from runtime service, falling back to defaults
             Configuration = ConfigService.Instance.Current;
             LoadConfigurationIntoUI(Configuration);
-            LoadRelatedTablesInfo();
-
-            // Initialize logging service
-            _loggingService = new LoggingService(Dispatcher);
-            SetupLoggingEventHandlers();
         }
 
         private void SetupLoggingEventHandlers()
@@ -39,6 +40,9 @@ namespace MVArchive
                     _loggingService.MaxEntries = maxEntries;
                 }
             };
+
+            // Set initial MaxEntries value
+            _loggingService.MaxEntries = GetMaxEntriesFromUI();
         }
 
         private void LoadConfigurationIntoUI(ArchiveConfig cfg)
@@ -56,40 +60,40 @@ namespace MVArchive
             txtDestPassword.Password = cfg.DestinationPassword;
 
             chkDryRun.IsChecked = cfg.IsDryRun;
+            chkOverwriteExisting.IsChecked = cfg.OverwriteExisting;
+            chkSkipCatalogTables.IsChecked = cfg.SkipCatalogTables;
+
+            txtFactoryDatabasePath.Text = cfg.FactoryDatabasePath;
+            txtProjectFilesDestinationPath.Text = cfg.ProjectFilesDestinationPath;
+
+            // Set the MaxEntries ComboBox selection
+            SetMaxEntriesSelection(cfg.MaxEntries);
+
+            // Update the LoggingService MaxEntries property
+            _loggingService.MaxEntries = cfg.MaxEntries;
         }
 
-        private void LoadRelatedTablesInfo()
+        private void SetMaxEntriesSelection(int maxEntries)
         {
-            var relatedTables = new[]
+            foreach (ComboBoxItem item in cmbMaxEntries.Items)
             {
-                "Projects (Main table)",
-                "Locations (Project locations)",
-                "Products (Project products)",
-                "Subassemblies (Project subassemblies)",
-                "Hardware (Project hardware)",
-                "Edgebanding (Project edgebanding)",
-                "AutoCADDrawings (Project drawings)",
-                "TiffDrawings (Project TIFF drawings)",
-                "CutPartsFiles (Project cut parts files)",
-                "DoorWizardFiles (Project door wizard files)",
-                "EdgebandFiles (Project edgeband files)",
-                "GlobalFiles (Project global files)",
-                "HardwareFiles (Project hardware files)",
-                "ProjectWizardFiles (Project wizard files)",
-                "Activities (Project activities)",
-                "Bundles (Project bundles)",
-                "BundleItems (Project bundle items)",
-                "BluePrintViews (Project blueprint views)",
-                "FaceFrameImages (Project face frame images)",
-                "Correspondence (Project correspondence)",
-                "PurchaseOrders (Project purchase orders)",
-                "WorkOrders (Project work orders)",
-                "WorkOrderBatches (Project work order batches)",
-                "WorkOrderItems (Project work order items)"
-            };
-
-            txtRelatedTables.Text = string.Join("\n• ", relatedTables);
+                if (int.TryParse(item.Content.ToString(), out int value) && value == maxEntries)
+                {
+                    cmbMaxEntries.SelectedItem = item;
+                    break;
+                }
+            }
         }
+
+        private int GetMaxEntriesFromUI()
+        {
+            if (cmbMaxEntries.SelectedItem is ComboBoxItem item && int.TryParse(item.Content.ToString(), out int value))
+            {
+                return value;
+            }
+            return 500; // Default fallback
+        }
+
 
         private async void BtnTestConnections_Click(object sender, RoutedEventArgs e)
         {
@@ -148,6 +152,58 @@ namespace MVArchive
             Close();
         }
 
+        private void BtnBrowseFactoryPath_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                using var dialog = new WinForms.FolderBrowserDialog
+                {
+                    Description = "Select Factory Database folder",
+                    UseDescriptionForTitle = true,
+                    ShowNewFolderButton = false
+                };
+                if (!string.IsNullOrWhiteSpace(txtFactoryDatabasePath.Text))
+                {
+                    dialog.InitialDirectory = txtFactoryDatabasePath.Text;
+                }
+                var result = dialog.ShowDialog();
+                if (result == WinForms.DialogResult.OK)
+                {
+                    txtFactoryDatabasePath.Text = dialog.SelectedPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open folder browser: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnBrowseDestinationPath_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                using var dialog = new WinForms.FolderBrowserDialog
+                {
+                    Description = "Select Project Files Destination folder",
+                    UseDescriptionForTitle = true,
+                    ShowNewFolderButton = true
+                };
+                if (!string.IsNullOrWhiteSpace(txtProjectFilesDestinationPath.Text))
+                {
+                    dialog.InitialDirectory = txtProjectFilesDestinationPath.Text;
+                }
+                var result = dialog.ShowDialog();
+                if (result == WinForms.DialogResult.OK)
+                {
+                    txtProjectFilesDestinationPath.Text = dialog.SelectedPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to open folder browser: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private ArchiveConfig GetConfigurationFromUI()
         {
             return new ArchiveConfig
@@ -162,7 +218,12 @@ namespace MVArchive
                 DestinationDatabase = txtDestDatabase.Text.Trim(),
                 DestinationUser = txtDestUser.Text.Trim(),
                 DestinationPassword = txtDestPassword.Password,
-                IsDryRun = chkDryRun.IsChecked ?? true
+                IsDryRun = chkDryRun.IsChecked ?? true,
+                OverwriteExisting = chkOverwriteExisting.IsChecked ?? false,
+                SkipCatalogTables = chkSkipCatalogTables.IsChecked ?? false,
+                FactoryDatabasePath = txtFactoryDatabasePath.Text.Trim(),
+                ProjectFilesDestinationPath = txtProjectFilesDestinationPath.Text.Trim(),
+                MaxEntries = GetMaxEntriesFromUI() // Read the selected value
             };
         }
     }

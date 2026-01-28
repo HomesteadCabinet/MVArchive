@@ -13,5 +13,10 @@ namespace MVArchive.Models
         public string DestinationPort { get; set; } = string.Empty;
         public string DestinationUser { get; set; } = string.Empty;
         public string DestinationPassword { get; set; } = string.Empty;
+        public bool OverwriteExisting { get; set; } = false;
+        public string FactoryDatabasePath { get; set; } = @"M:\Homestead_Library\Factory Database";
+        public string ProjectFilesDestinationPath { get; set; } = string.Empty;
+        public int MaxEntries { get; set; } = 500;
+        public bool SkipCatalogTables { get; set; } = false;
     }
 }

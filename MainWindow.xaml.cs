@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -13,8 +14,12 @@ namespace MVArchive
   {
     private readonly DatabaseService _databaseService;
     private readonly DispatcherTimer _statusTimer;
-    private ArchiveConfig? _archiveConfig; // New field for archive configuration
+    private ArchiveConfig? _archiveConfig;
     private LoggingService _loggingService;
+    private List<Project> _allProjects = new List<Project>();
+    private readonly ObservableCollection<Project> _selectedForArchive = new ObservableCollection<Project>();
+    private readonly ObservableCollection<Project> _availableFiltered = new ObservableCollection<Project>();
+    private readonly ObservableCollection<Project> _destinationFiltered = new ObservableCollection<Project>();
 
     public MainWindow()
     {
@@ -47,17 +52,124 @@ namespace MVArchive
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-      // Setup the LoggingPanel with the current logging service
-      if (loggingPanel != null)
+      loggingPanel?.SetLoggingService(_loggingService);
+      dgAvailable.ItemsSource = _availableFiltered;
+      dgSelected.ItemsSource = _destinationFiltered;
+      await TestConnectionAsync();
+      await LoadProjectsAsync();
+    }
+
+    private void Filter_Changed(object sender, EventArgs e)
+    {
+      ApplyFilters();
+    }
+
+    private void BtnClearFilter_Click(object sender, RoutedEventArgs e)
+    {
+      txtFilterName.Text = string.Empty;
+      dpFilterDateFrom.SelectedDate = null;
+      dpFilterDateTo.SelectedDate = null;
+      ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+      var nameFilter = (txtFilterName?.Text ?? string.Empty).Trim();
+      var dateFrom = dpFilterDateFrom?.SelectedDate;
+      var dateTo = dpFilterDateTo?.SelectedDate;
+      // When Dry Run is ON, do NOT hide already-archived projects (user wants to see them in the source list).
+      // When Dry Run is OFF, exclude source projects that are already in the destination (archive) by LinkID.
+      var isDryRun = _archiveConfig?.IsDryRun ?? true;
+      var destinationLinkIds = isDryRun
+        ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        : new HashSet<string>(
+          _selectedForArchive.Select(p => p.LinkID).Where(id => !string.IsNullOrEmpty(id)).Cast<string>(),
+          StringComparer.OrdinalIgnoreCase);
+
+      _availableFiltered.Clear();
+      foreach (var p in _allProjects)
       {
-        loggingPanel.SetLoggingService(_loggingService);
+        if (!string.IsNullOrEmpty(p.LinkID) && destinationLinkIds.Contains(p.LinkID))
+          continue;
+        if (!MatchesNameAndDateFilter(p, nameFilter, dateFrom, dateTo))
+          continue;
+        _availableFiltered.Add(p);
       }
 
-      await TestConnectionAsync();
-      if (txtConnectionStatus.Text.Contains("Connected"))
+      _destinationFiltered.Clear();
+      foreach (var p in _selectedForArchive)
       {
-        await LoadProjectsAsync();
+        if (!MatchesNameAndDateFilter(p, nameFilter, dateFrom, dateTo))
+          continue;
+        _destinationFiltered.Add(p);
       }
+      UpdateStatusCounts();
+    }
+
+    private static bool MatchesNameAndDateFilter(Project p, string nameFilter, DateTime? dateFrom, DateTime? dateTo)
+    {
+      if (!string.IsNullOrEmpty(nameFilter) &&
+          (string.IsNullOrEmpty(p.Name) || p.Name.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) < 0))
+        return false;
+      if (dateFrom.HasValue && (p.ScheduledStartDate == null || p.ScheduledStartDate.Value.Date < dateFrom.Value.Date))
+        return false;
+      if (dateTo.HasValue && (p.ScheduledStartDate == null || p.ScheduledStartDate.Value.Date > dateTo.Value.Date))
+        return false;
+      return true;
+    }
+
+    private void UpdateStatusCounts()
+    {
+      txtRecordCount.Text = $"Available: {_availableFiltered.Count} | In archive: {_destinationFiltered.Count}";
+    }
+
+    private static string? BuildDestinationConnectionString(ArchiveConfig? config)
+    {
+      if (config == null || string.IsNullOrWhiteSpace(config.DestinationDatabase))
+        return null;
+      var host = string.IsNullOrWhiteSpace(config.DestinationHost) ? "localhost" : config.DestinationHost;
+      var port = string.IsNullOrWhiteSpace(config.DestinationPort) ? "1433" : config.DestinationPort;
+      var user = config.DestinationUser ?? "sa";
+      var password = config.DestinationPassword ?? "";
+      return $"Server={host},{port};Database={config.DestinationDatabase};User Id={user};Password={password};TrustServerCertificate=true;";
+    }
+
+    private async Task LoadDestinationProjectsAsync()
+    {
+      _archiveConfig = ConfigService.Instance.Current;
+      var connStr = BuildDestinationConnectionString(_archiveConfig);
+      if (string.IsNullOrWhiteSpace(connStr))
+      {
+        _selectedForArchive.Clear();
+        ApplyFilters();
+        return;
+      }
+      try
+      {
+        var destProjects = await _databaseService.GetAllProjectsFromConnectionAsync(connStr);
+        _selectedForArchive.Clear();
+        foreach (var p in destProjects)
+          _selectedForArchive.Add(p);
+        ApplyFilters();
+        _loggingService.LogInfo("Data", $"Loaded {destProjects.Count} projects from destination (archive)");
+      }
+      catch (Exception ex)
+      {
+        _loggingService.LogWarning("Data", "Could not load destination projects", ex.Message);
+        _selectedForArchive.Clear();
+        ApplyFilters();
+      }
+    }
+
+    private void BtnMoveRight_Click(object sender, RoutedEventArgs e)
+    {
+      // Move right = archive selected from left pane
+      BtnArchiveSelected_Click(sender, e);
+    }
+
+    private void BtnMoveLeft_Click(object sender, RoutedEventArgs e)
+    {
+      // Right pane is read-only from destination; move left has no effect
     }
 
     private async void BtnTestConnection_Click(object sender, RoutedEventArgs e)
@@ -93,12 +205,8 @@ namespace MVArchive
           // Persist to runtime service immediately
           _archiveConfig = configWindow.Configuration;
           ConfigService.Instance.Update(_archiveConfig!);
-          txtArchiveStatus.Text = "Archive: Configured";
-          txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Green;
 
-          // Enable archive buttons
           btnArchiveSelected.IsEnabled = true;
-          btnArchiveAll.IsEnabled = true;
 
           _loggingService.LogInfo("Archive", "Archive configuration saved",
             $"Source: {_archiveConfig.SourceDatabase}, Destination: {_archiveConfig.DestinationDatabase}, Dry Run: {_archiveConfig.IsDryRun}");
@@ -107,10 +215,7 @@ namespace MVArchive
         {
           // If user closed without Save, keep existing runtime config; still allow usage if present
           if (_archiveConfig != null)
-          {
             btnArchiveSelected.IsEnabled = true;
-            btnArchiveAll.IsEnabled = true;
-          }
         }
       }
       catch (Exception ex)
@@ -121,20 +226,19 @@ namespace MVArchive
       }
     }
 
-    // New method to archive selected project
     private async void BtnArchiveSelected_Click(object sender, RoutedEventArgs e)
     {
       try
       {
-        var selectedProject = dgProjects.SelectedItem as Project;
-        if (selectedProject == null)
+        // Archive projects selected in the left pane (available / source)
+        var selectedItems = dgAvailable.SelectedItems?.Cast<Project>().ToList() ?? new List<Project>();
+        if (selectedItems.Count == 0)
         {
-          MessageBox.Show("Please select a project to archive.", "No Project Selected",
+          MessageBox.Show("Please select one or more projects in the left pane (Available) to archive.", "No Project Selected",
                   MessageBoxButton.OK, MessageBoxImage.Information);
           return;
         }
 
-        // Pull latest runtime config; do not block if window is open/closed
         _archiveConfig = ConfigService.Instance.Current;
         if (_archiveConfig == null)
         {
@@ -144,8 +248,12 @@ namespace MVArchive
           return;
         }
 
+        var confirmMsg = selectedItems.Count == 1
+          ? $"Are you sure you want to archive project '{selectedItems[0].Name}'?\n\n"
+          : $"Are you sure you want to archive {selectedItems.Count} selected projects?\n\n";
+
         var result = MessageBox.Show(
-          $"Are you sure you want to archive project '{selectedProject.Name}'?\n\n" +
+          confirmMsg +
           $"This will copy all project data and related records to the archive database.\n" +
           $"Dry Run: {(_archiveConfig.IsDryRun ? "Yes (no deletion)" : "No (will delete from source)")}",
           "Confirm Archive",
@@ -155,38 +263,28 @@ namespace MVArchive
         if (result == MessageBoxResult.Yes)
         {
           btnArchiveSelected.IsEnabled = false;
-          btnArchiveAll.IsEnabled = false;
-          txtArchiveStatus.Text = "Archive in progress...";
-          txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Orange;
 
           try
           {
-            _loggingService.LogInfo("Archive", $"Starting archive for project: {selectedProject.Name}",
-              $"Project ID: {selectedProject.Id}, LinkID: {selectedProject.LinkID}");
-
-            // Check if LinkID is available
-            if (string.IsNullOrEmpty(selectedProject.LinkID))
+            var linkIds = selectedItems.Select(p => p.LinkID).Where(id => !string.IsNullOrEmpty(id)).Cast<string>().ToList();
+            if (linkIds.Count != selectedItems.Count)
             {
-              throw new InvalidOperationException($"Project {selectedProject.Name} has no LinkID");
+              throw new InvalidOperationException("One or more selected projects have no LinkID");
             }
 
-            // Use the LinkID for the archive operation
-            await ArchiveProjectAsync(selectedProject.LinkID);
+            var archiveService = new ArchiveService(_archiveConfig!, _loggingService, ShowOverwriteConfirmation);
+            var progressWindow = new ArchiveProgressWindow(archiveService);
+            progressWindow.Owner = this;
+            progressWindow.Show();
 
-            txtArchiveStatus.Text = "Archive completed successfully!";
-            txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Green;
+            await progressWindow.StartArchiveAsync(linkIds);
 
-            _loggingService.LogInfo("Archive", "Project archive completed successfully",
-              $"Project: {selectedProject.Name}");
-
-            // Refresh the projects list
+            await LoadDestinationProjectsAsync();
+            ApplyFilters();
             await LoadProjectsAsync();
           }
           catch (Exception ex)
           {
-            txtArchiveStatus.Text = $"Archive failed: {ex.Message}";
-            txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Red;
-
             _loggingService.LogError("Archive", "Project archive failed", ex.ToString());
 
             MessageBox.Show($"Archive failed: {ex.Message}", "Archive Error",
@@ -195,7 +293,6 @@ namespace MVArchive
           finally
           {
             btnArchiveSelected.IsEnabled = true;
-            btnArchiveAll.IsEnabled = true;
           }
         }
       }
@@ -206,108 +303,19 @@ namespace MVArchive
       }
     }
 
-    // New method to archive all projects
-    private async void BtnArchiveAll_Click(object sender, RoutedEventArgs e)
+    private bool ShowOverwriteConfirmation(string message)
     {
-      _archiveConfig = ConfigService.Instance.Current;
-      if (_archiveConfig == null)
+      // This method will be called from a background thread, so we need to invoke on the UI thread
+      return Dispatcher.Invoke(() =>
       {
-        _loggingService.LogWarning("Archive", "Bulk archive attempted without configuration");
-        MessageBox.Show("Please configure archive settings first.", "Archive Not Configured",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-        return;
-      }
+        var result = MessageBox.Show(
+          message,
+          "Overwrite Confirmation",
+          MessageBoxButton.YesNo,
+          MessageBoxImage.Question);
 
-      var result = MessageBox.Show(
-        $"Are you sure you want to archive ALL projects?\n\n" +
-        $"This will copy all project data and related records to the archive database.\n" +
-        $"{(_archiveConfig.IsDryRun ? "DRY RUN: Source data will NOT be deleted." : "Source data WILL be deleted after archiving.")}\n\n" +
-        $"This operation may take a long time depending on the amount of data.",
-        "Confirm Archive All", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-      if (result == MessageBoxResult.Yes)
-      {
-        _loggingService.LogInfo("Archive", "Starting bulk archive for all projects");
-        await ArchiveAllProjectsAsync();
-      }
-    }
-
-    // Helper method for single project archiving
-    private async Task ArchiveProjectAsync(string projectId)
-    {
-      try
-      {
-        btnArchiveSelected.IsEnabled = false;
-        btnArchiveAll.IsEnabled = false;
-        txtArchiveStatus.Text = "Archive: In Progress...";
-        txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Orange;
-
-        var archiveService = new ArchiveService(_archiveConfig!, _loggingService);
-        var progressWindow = new ArchiveProgressWindow(archiveService);
-
-        progressWindow.Owner = this;
-        progressWindow.Show();
-
-        await progressWindow.StartArchiveAsync(projectId);
-
-        txtArchiveStatus.Text = "Archive: Completed";
-        txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Green;
-
-        // Refresh the projects list
-        await LoadProjectsAsync();
-      }
-      catch (Exception ex)
-      {
-        txtArchiveStatus.Text = "Archive: Failed";
-        txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Red;
-        _loggingService.LogError("Archive", "Project archive failed", ex.ToString());
-        MessageBox.Show($"Archive failed: {ex.Message}", "Archive Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-      }
-      finally
-      {
-        btnArchiveSelected.IsEnabled = true;
-        btnArchiveAll.IsEnabled = true;
-      }
-    }
-
-    // Helper method for all projects archiving
-    private async Task ArchiveAllProjectsAsync()
-    {
-      try
-      {
-        btnArchiveSelected.IsEnabled = false;
-        btnArchiveAll.IsEnabled = false;
-        txtArchiveStatus.Text = "Archive All: In Progress...";
-        txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Orange;
-
-        var archiveService = new ArchiveService(_archiveConfig!, _loggingService);
-        var progressWindow = new ArchiveProgressWindow(archiveService);
-
-        progressWindow.Owner = this;
-        progressWindow.Show();
-
-        await progressWindow.StartArchiveAsync();
-
-        txtArchiveStatus.Text = "Archive All: Completed";
-        txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Green;
-
-        // Refresh the projects list
-        await LoadProjectsAsync();
-      }
-      catch (Exception ex)
-      {
-        txtArchiveStatus.Text = "Archive All: Failed";
-        txtArchiveStatus.Foreground = System.Windows.Media.Brushes.Red;
-        _loggingService.LogError("Archive", "Bulk archive failed", ex.ToString());
-        MessageBox.Show($"Archive all failed: {ex.Message}", "Archive Error",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-      }
-      finally
-      {
-        btnArchiveSelected.IsEnabled = true;
-        btnArchiveAll.IsEnabled = true;
-      }
+        return result == MessageBoxResult.Yes;
+      });
     }
 
     private async Task TestConnectionAsync()
@@ -315,7 +323,6 @@ namespace MVArchive
       try
       {
         btnTestConnection.IsEnabled = false;
-        txtConnectionStatus.Text = "Testing connection...";
         txtStatus.Text = "Testing database connection...";
 
         _loggingService.LogInfo("Connection", "Testing database connection");
@@ -324,23 +331,17 @@ namespace MVArchive
 
         if (isConnected)
         {
-          txtConnectionStatus.Text = "Connection Status: Connected";
-          txtConnectionStatus.Foreground = System.Windows.Media.Brushes.Green;
           txtStatus.Text = "Database connection successful!";
           _loggingService.LogInfo("Connection", "Database connection successful");
         }
         else
         {
-          txtConnectionStatus.Text = "Connection Status: Failed";
-          txtConnectionStatus.Foreground = System.Windows.Media.Brushes.Red;
           txtStatus.Text = "Database connection failed!";
           _loggingService.LogError("Connection", "Database connection failed");
         }
       }
       catch (Exception ex)
       {
-        txtConnectionStatus.Text = "Connection Status: Error";
-        txtConnectionStatus.Foreground = System.Windows.Media.Brushes.Red;
         txtStatus.Text = $"Connection error: {ex.Message}";
         _loggingService.LogError("Connection", "Database connection error", ex.ToString());
       }
@@ -357,19 +358,17 @@ namespace MVArchive
       {
         btnRefresh.IsEnabled = false;
         txtStatus.Text = "Loading projects...";
-        dgProjects.ItemsSource = null;
 
         _loggingService.LogInfo("Data", "Loading projects from database");
 
-        var projects = await _databaseService.GetAllProjectsAsync();
+        _allProjects = await _databaseService.GetAllProjectsAsync();
+        await LoadDestinationProjectsAsync();
+        ApplyFilters();
+        txtStatus.Text = $"Loaded {_allProjects.Count} projects successfully!";
 
-        dgProjects.ItemsSource = projects;
-        txtRecordCount.Text = $"Records: {projects.Count}";
-        txtStatus.Text = $"Loaded {projects.Count} projects successfully!";
+        _loggingService.LogInfo("Data", $"Successfully loaded {_allProjects.Count} projects");
 
-        _loggingService.LogInfo("Data", $"Successfully loaded {projects.Count} projects");
-
-        if (projects.Count == 0)
+        if (_allProjects.Count == 0)
         {
           txtStatus.Text = "No projects found in the database.";
           _loggingService.LogWarning("Data", "No projects found in database");
@@ -378,11 +377,12 @@ namespace MVArchive
       catch (Exception ex)
       {
         txtStatus.Text = $"Error loading projects: {ex.Message}";
-        txtRecordCount.Text = "Records: Error";
+        _allProjects = new List<Project>();
+        await LoadDestinationProjectsAsync();
+        ApplyFilters();
 
         _loggingService.LogError("Data", "Failed to load projects", ex.ToString());
 
-        // Show error message box
         MessageBox.Show($"Error loading projects:\n{ex.Message}",
                   "Database Error",
                   MessageBoxButton.OK,

@@ -11,6 +11,7 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
@@ -21,76 +22,137 @@
            FontSize="24" FontWeight="Bold" Margin="0,0,0,20"
            HorizontalAlignment="Center"/>
 
-    <!-- Combined Toolbar for Connection and Archive Controls -->
-    <!--
-      ToolBar options in WPF:
-        - ToolBar can contain any UIElement (Buttons, ComboBoxes, TextBoxes, etc.)
-        - ToolBar has properties like Orientation (Horizontal/Vertical), Band, BandIndex, IsOverflowOpen, etc.
-        - ToolBar supports overflow for items that don't fit.
-        - ToolBar can be placed inside a ToolBarTray for multiple toolbars.
-        - ToolBar styling can be customized via ToolBar.Resources.
-        - ToolBar supports Command bindings for MVVM.
-        - ToolBar can have separators (<Separator/>) for grouping.
-        - ToolBar can be themed and styled.
-        - ToolBar can be docked or floated if inside a ToolBarTray.
-    -->
+    <!-- Toolbar -->
     <ToolBar Grid.Row="1" Margin="0,0,0,20">
-      <!-- Connection Controls -->
-      <Button x:Name="btnTestConnection" Content="Test Connection"
-          Width="120" Height="30" Margin="0,0,10,0" Click="BtnTestConnection_Click"/>
-      <Button x:Name="btnRefresh" Content="Refresh Data"
-          Width="120" Height="30" Margin="0,0,20,0" Click="BtnRefresh_Click"/>
-      <TextBlock x:Name="txtConnectionStatus" Text="Connection Status: Unknown"
-             VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,30,0"/>
-
-      <!-- Archive Controls -->
+      <ToolBar.Resources>
+        <Style x:Key="IconToolbarButton" TargetType="Button">
+          <Setter Property="Padding" Value="8,4"/>
+          <Setter Property="BorderThickness" Value="1"/>
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="Button">
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="3"
+                        Padding="{TemplateBinding Padding}">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="Segoe MDL2 Assets"
+                               Text="{TemplateBinding Tag}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0"/>
+                    <ContentPresenter VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FFE0E5F5"/>
+                  </Trigger>
+                  <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#FFD6D6D6"/>
+                  </Trigger>
+                  <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.6"/>
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </ToolBar.Resources>
+      <Button x:Name="btnArchiveConfig" Content="Settings" Tag="&#xE713;"
+          Width="100" Height="30" Margin="0,0,10,0" Click="BtnArchiveConfig_Click"
+          Style="{StaticResource IconToolbarButton}"/>
+      <Button x:Name="btnTestConnection" Content="Test Connection" Tag="&#xE71B;"
+          Width="120" Height="30" Margin="0,0,10,0" Click="BtnTestConnection_Click"
+          Style="{StaticResource IconToolbarButton}"/>
+      <Button x:Name="btnRefresh" Content="Refresh Data" Tag="&#xE72C;"
+          Width="120" Height="30" Margin="0,0,20,0" Click="BtnRefresh_Click"
+          Style="{StaticResource IconToolbarButton}"/>
       <Separator/>
-      <Button x:Name="btnArchiveConfig" Content="Archive Configuration"
-          Width="150" Height="30" Margin="0,0,10,0" Click="BtnArchiveConfig_Click"/>
-      <Button x:Name="btnArchiveSelected" Content="Archive Selected Project"
-          Width="150" Height="30" Margin="0,0,10,0" Click="BtnArchiveSelected_Click"/>
-      <Button x:Name="btnArchiveAll" Content="Archive All Projects"
-          Width="150" Height="30" Margin="0,0,10,0" Click="BtnArchiveAll_Click"/>
-      <TextBlock x:Name="txtArchiveStatus" Text="Archive: Ready"
-                 VerticalAlignment="Center" FontWeight="Bold" Margin="20,0,0,0"/>
+      <Button x:Name="btnArchiveSelected" Content="Archive Selected" Tag="&#xE74E;"
+          Width="130" Height="30" Margin="0,0,10,0" Click="BtnArchiveSelected_Click"
+          Style="{StaticResource IconToolbarButton}"/>
     </ToolBar>
 
-    <!-- DataGrid for Projects -->
-    <DataGrid x:Name="dgProjects" Grid.Row="3" Margin="0,0,0,10"
-          AutoGenerateColumns="False"
-          IsReadOnly="True"
-          GridLinesVisibility="All"
-          HeadersVisibility="All"
-          CanUserResizeRows="False"
-          CanUserAddRows="False"
-          CanUserDeleteRows="False"
-          SelectionMode="Single"
-          SelectionUnit="FullRow">
+    <!-- Filters: Name + Date Range -->
+    <Border Grid.Row="2" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,12" Background="#FFF8F8F8">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Text="Name:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+        <TextBox x:Name="txtFilterName" Width="200" Padding="4,2" VerticalContentAlignment="Center"
+                 TextChanged="Filter_Changed"/>
+        <TextBlock Text="Date from:" VerticalAlignment="Center" Margin="16,0,6,0"/>
+        <DatePicker x:Name="dpFilterDateFrom" Width="120" SelectedDateChanged="Filter_Changed"/>
+        <TextBlock Text="to:" VerticalAlignment="Center" Margin="6,0,6,0"/>
+        <DatePicker x:Name="dpFilterDateTo" Width="120" SelectedDateChanged="Filter_Changed"/>
+        <Button x:Name="btnClearFilter" Content="Clear" Width="60" Margin="12,0,0,0" Click="BtnClearFilter_Click"/>
+      </StackPanel>
+    </Border>
 
-      <DataGrid.Columns>
-        <DataGridTextColumn Header="LinkID" Binding="{Binding LinkID}" Width="80"/>
-        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
-        <DataGridTextColumn Header="Job Number" Binding="{Binding JobNumber}" Width="100"/>
-        <DataGridTextColumn Header="Job Description" Binding="{Binding JobDescription}" Width="200"/>
-        <DataGridTextColumn Header="Project Manager" Binding="{Binding ProjectManager}" Width="120"/>
-        <DataGridTextColumn Header="Architect" Binding="{Binding Architect}" Width="100"/>
-        <DataGridTextColumn Header="Contractor" Binding="{Binding Contractor}" Width="100"/>
-        <DataGridTextColumn Header="Project Budget" Binding="{Binding ProjectBudget, StringFormat=C}" Width="100"/>
-        <DataGridTextColumn Header="Total Cost" Binding="{Binding TotalProjectCost, StringFormat=C}" Width="100"/>
-        <DataGridTextColumn Header="Start Date" Binding="{Binding ScheduledStartDate, StringFormat=yyyy-MM-dd}" Width="100"/>
-        <DataGridTextColumn Header="Completion Date" Binding="{Binding ScheduledCompletionDate, StringFormat=yyyy-MM-dd}" Width="100"/>
-        <DataGridTextColumn Header="Date Created" Binding="{Binding DateCreated, StringFormat=yyyy-MM-dd}" Width="100"/>
-        <DataGridTextColumn Header="Inactive" Binding="{Binding IsInactive}" Width="60"/>
-      </DataGrid.Columns>
-    </DataGrid>
+    <!-- Dual pane: Available (left) | Move buttons (center) | Selected for archive (right) -->
+    <Grid Grid.Row="4" Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MinWidth="200"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*" MinWidth="200"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Left pane: Available projects (filtered) -->
+      <Border Grid.Column="0" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <TextBlock Grid.Row="0" Text="Available" FontWeight="SemiBold" Margin="8,6" Foreground="#FF333333"/>
+          <DataGrid x:Name="dgAvailable" Grid.Row="1" Margin="4"
+                AutoGenerateColumns="False" IsReadOnly="True"
+                GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                CanUserResizeRows="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                SelectionMode="Extended" SelectionUnit="FullRow">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="120"/>
+              <DataGridTextColumn Header="Start Date" Binding="{Binding ScheduledStartDate, StringFormat=yyyy-MM-dd}" Width="100"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </Border>
+
+      <!-- Center: Move buttons -->
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+        <Button x:Name="btnMoveRight" Content="→" Width="40" Height="32" Margin="0,4" ToolTip="Archive selected (left pane)" Click="BtnMoveRight_Click"/>
+        <Button x:Name="btnMoveLeft" Content="←" Width="40" Height="32" Margin="0,4" ToolTip="Remove from archive list" Click="BtnMoveLeft_Click"/>
+      </StackPanel>
+
+      <!-- Right pane: Selected for archive -->
+      <Border Grid.Column="2" BorderBrush="#FFD0D0D0" BorderThickness="1" CornerRadius="4" Margin="4,0,0,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <TextBlock Grid.Row="0" Text="In archive (destination)" FontWeight="SemiBold" Margin="8,6" Foreground="#FF333333"/>
+          <DataGrid x:Name="dgSelected" Grid.Row="1" Margin="4"
+                AutoGenerateColumns="False" IsReadOnly="True"
+                GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                CanUserResizeRows="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                SelectionMode="Extended" SelectionUnit="FullRow">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" MinWidth="120"/>
+              <DataGridTextColumn Header="Start Date" Binding="{Binding ScheduledStartDate, StringFormat=yyyy-MM-dd}" Width="100"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </Border>
+    </Grid>
 
     <!-- Collapsible Logging Panel at Bottom -->
-    <Expander Grid.Row="4" Header="Detailed Logging" IsExpanded="False">
-      <local:LoggingPanel x:Name="loggingPanel" Height="250"/>
+    <Expander Grid.Row="5" Header="Detailed Logging" IsExpanded="False">
+      <local:LoggingPanel x:Name="loggingPanel" Height="550"/>
     </Expander>
 
     <!-- Status Bar (Bottom Most) -->
-    <StatusBar Grid.Row="5" Margin="0,10,0,0">
+    <StatusBar Grid.Row="6" Margin="0,10,0,0">
       <StatusBarItem>
         <TextBlock x:Name="txtStatus" Text="Ready"/>
       </StatusBarItem>

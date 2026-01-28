@@ -202,6 +202,37 @@ namespace MVArchive.Controls
             }
         }
 
+        private void BtnCopyToClipboard_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            try
+            {
+                if (_filteredLogEntries.Count == 0)
+                {
+                    MessageBox.Show("No log entries to copy.", "Copy to Clipboard", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var logText = string.Join(Environment.NewLine, _filteredLogEntries.Select(entry =>
+                    $"[{entry.Timestamp:yyyy-MM-dd HH:mm:ss}] {entry.Level} | {entry.Category} | {entry.Message}" +
+                    (!string.IsNullOrEmpty(entry.Details) ? $" | {entry.Details}" : "")));
+
+                Clipboard.SetText(logText);
+                MessageBox.Show(
+                    $"Copied {_filteredLogEntries.Count} log entries to clipboard.",
+                    "Copy Successful",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to copy log to clipboard:\n{ex.Message}",
+                    "Copy Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
         public void RefreshFilters()
         {
             ApplyFilters();

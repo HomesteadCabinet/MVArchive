@@ -24,81 +24,106 @@ namespace MVArchive.Services
 
         public async Task<List<Project>> GetAllProjectsAsync()
         {
-            var projects = new List<Project>();
+            return await GetAllProjectsFromConnectionAsync(_connectionString);
+        }
 
+        /// <summary>Load projects from a database using the given connection string (e.g. destination archive).</summary>
+        public async Task<List<Project>> GetAllProjectsFromConnectionAsync(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString))
+                return new List<Project>();
+
+            var projects = new List<Project>();
             try
             {
-                using (var connection = new SqlConnection(_connectionString))
+                using var connection = new SqlConnection(connectionString);
+                await connection.OpenAsync();
+                using var command = new SqlCommand("SELECT * FROM Projects WHERE ISNULL(Name,'') <> 'Template'", connection);
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
                 {
-                    await connection.OpenAsync();
-
-                    using (var command = new SqlCommand("SELECT * FROM Projects", connection))
-                    using (var reader = await command.ExecuteReaderAsync())
-                    {
-                        while (await reader.ReadAsync())
-                        {
-                            var project = new Project
-                            {
-                                Id = reader.GetGuid("ID"),
-                                Name = reader.IsDBNull("Name") ? null : reader.GetString("Name"),
-                                JobNumber = reader.IsDBNull("JobNumber") ? null : reader.GetString("JobNumber"),
-                                JobDescription = reader.IsDBNull("JobDescription") ? null : reader.GetString("JobDescription"),
-                                JobAddress = reader.IsDBNull("JobAddress") ? null : reader.GetString("JobAddress"),
-                                JobPhone = reader.IsDBNull("JobPhone") ? null : reader.GetString("JobPhone"),
-                                JobEMail = reader.IsDBNull("JobEMail") ? null : reader.GetString("JobEMail"),
-                                JobFax = reader.IsDBNull("JobFax") ? null : reader.GetString("JobFax"),
-                                ProjectManager = reader.IsDBNull("ProjectManager") ? null : reader.GetString("ProjectManager"),
-                                Architect = reader.IsDBNull("Architect") ? null : reader.GetString("Architect"),
-                                Contractor = reader.IsDBNull("Contractor") ? null : reader.GetString("Contractor"),
-                                Draftsman = reader.IsDBNull("Draftsman") ? null : reader.GetString("Draftsman"),
-                                Estimator = reader.IsDBNull("Estimator") ? null : reader.GetString("Estimator"),
-                                GeneralContact = reader.IsDBNull("GeneralContact") ? null : reader.GetString("GeneralContact"),
-                                ProjectNumber = reader.IsDBNull("ProjectNumber") ? null : reader.GetInt32("ProjectNumber"),
-                                ProjectBudget = reader.IsDBNull("ProjectBudget") ? null : (float?)reader.GetDouble("ProjectBudget"),
-                                TotalProjectCost = reader.IsDBNull("TotalProjectCost") ? null : (float?)reader.GetDouble("TotalProjectCost"),
-                                ScheduledStartDate = reader.IsDBNull("ScheduledStartDate") ? null : reader.GetDateTime("ScheduledStartDate"),
-                                ScheduledCompletionDate = reader.IsDBNull("ScheduledCompletionDate") ? null : reader.GetDateTime("ScheduledCompletionDate"),
-                                DateCreated = reader.IsDBNull("DateCreated") ? null : reader.GetDateTime("DateCreated"),
-                                DateLastOpened = reader.IsDBNull("DateLastOpened") ? null : reader.GetDateTime("DateLastOpened"),
-                                IsInactive = reader.IsDBNull("IsInactive") ? null : reader.GetBoolean("IsInactive"),
-                                PrintFlag = reader.IsDBNull("PrintFlag") ? null : reader.GetBoolean("PrintFlag"),
-                                Modified = reader.IsDBNull("Modified") ? null : reader.GetBoolean("Modified"),
-                                Type = reader.IsDBNull("Type") ? null : reader.GetInt32("Type"),
-                                LinkID = reader.IsDBNull("LinkID") ? null : reader.GetString("LinkID"),
-                                LinkIDCategory = reader.IsDBNull("LinkIDCategory") ? null : reader.GetString("LinkIDCategory"),
-                                LinkIDCustomerCompany = reader.IsDBNull("LinkIDCustomerCompany") ? null : reader.GetString("LinkIDCustomerCompany"),
-                                LocationCoordinates = reader.IsDBNull("LocationCoordinates") ? null : reader.GetString("LocationCoordinates")
-                            };
-
-                            projects.Add(project);
-                        }
-                    }
+                    projects.Add(ReadProject(reader));
                 }
             }
             catch (Exception ex)
             {
-                // In a production app, you'd want proper logging here
                 System.Diagnostics.Debug.WriteLine($"Database error: {ex.Message}");
                 throw;
             }
-
             return projects;
+        }
+
+        private static Project ReadProject(SqlDataReader reader)
+        {
+            return new Project
+            {
+                Id = reader.GetGuid("ID"),
+                Name = reader.IsDBNull("Name") ? null : reader.GetString("Name"),
+                JobNumber = reader.IsDBNull("JobNumber") ? null : reader.GetString("JobNumber"),
+                JobDescription = reader.IsDBNull("JobDescription") ? null : reader.GetString("JobDescription"),
+                JobAddress = reader.IsDBNull("JobAddress") ? null : reader.GetString("JobAddress"),
+                JobPhone = reader.IsDBNull("JobPhone") ? null : reader.GetString("JobPhone"),
+                JobEMail = reader.IsDBNull("JobEMail") ? null : reader.GetString("JobEMail"),
+                JobFax = reader.IsDBNull("JobFax") ? null : reader.GetString("JobFax"),
+                ProjectManager = reader.IsDBNull("ProjectManager") ? null : reader.GetString("ProjectManager"),
+                Architect = reader.IsDBNull("Architect") ? null : reader.GetString("Architect"),
+                Contractor = reader.IsDBNull("Contractor") ? null : reader.GetString("Contractor"),
+                Draftsman = reader.IsDBNull("Draftsman") ? null : reader.GetString("Draftsman"),
+                Estimator = reader.IsDBNull("Estimator") ? null : reader.GetString("Estimator"),
+                GeneralContact = reader.IsDBNull("GeneralContact") ? null : reader.GetString("GeneralContact"),
+                ProjectNumber = reader.IsDBNull("ProjectNumber") ? null : reader.GetInt32("ProjectNumber"),
+                ProjectBudget = reader.IsDBNull("ProjectBudget") ? null : (float?)reader.GetDouble("ProjectBudget"),
+                TotalProjectCost = reader.IsDBNull("TotalProjectCost") ? null : (float?)reader.GetDouble("TotalProjectCost"),
+                ScheduledStartDate = reader.IsDBNull("ScheduledStartDate") ? null : reader.GetDateTime("ScheduledStartDate"),
+                ScheduledCompletionDate = reader.IsDBNull("ScheduledCompletionDate") ? null : reader.GetDateTime("ScheduledCompletionDate"),
+                DateCreated = reader.IsDBNull("DateCreated") ? null : reader.GetDateTime("DateCreated"),
+                DateLastOpened = reader.IsDBNull("DateLastOpened") ? null : reader.GetDateTime("DateLastOpened"),
+                IsInactive = reader.IsDBNull("IsInactive") ? null : reader.GetBoolean("IsInactive"),
+                PrintFlag = reader.IsDBNull("PrintFlag") ? null : reader.GetBoolean("PrintFlag"),
+                Modified = reader.IsDBNull("Modified") ? null : reader.GetBoolean("Modified"),
+                Type = reader.IsDBNull("Type") ? null : reader.GetInt32("Type"),
+                LinkID = reader.IsDBNull("LinkID") ? null : reader.GetString("LinkID"),
+                LinkIDCategory = reader.IsDBNull("LinkIDCategory") ? null : reader.GetString("LinkIDCategory"),
+                LinkIDCustomerCompany = reader.IsDBNull("LinkIDCustomerCompany") ? null : reader.GetString("LinkIDCustomerCompany"),
+                LocationCoordinates = reader.IsDBNull("LocationCoordinates") ? null : reader.GetString("LocationCoordinates")
+            };
         }
 
         public async Task<bool> TestConnectionAsync()
         {
             try
             {
-                using (var connection = new SqlConnection(_connectionString))
-                {
-                    await connection.OpenAsync();
-                    return true;
-                }
+                using var connection = new SqlConnection(_connectionString);
+                await connection.OpenAsync();
+                return true;
             }
             catch
             {
                 return false;
             }
+        }
+
+        public async Task<Project?> GetProjectByLinkIdAsync(string linkId)
+        {
+            try
+            {
+                using var connection = new SqlConnection(_connectionString);
+                await connection.OpenAsync();
+
+                using var command = new SqlCommand("SELECT * FROM Projects WHERE LinkID = @LinkId", connection);
+                command.Parameters.AddWithValue("@LinkId", linkId);
+
+                using var reader = await command.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                    return ReadProject(reader);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Database error: {ex.Message}");
+                throw;
+            }
+
+            return null;
         }
     }
 }
