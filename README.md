@@ -122,7 +122,28 @@ MICROVELLUM_DB_NAME=your_database
    dotnet run
    ```
 
+- Deletes archived data from source database (optional - controlled by dry-run flag)
+- Validates archiving completeness with verification scripts
+
+## Documentation
+
+For detailed information, see the **[docs/](docs/)** directory:
+
+- **[VERIFICATION_GUIDE.md](docs/VERIFICATION_GUIDE.md)** - Complete guide for verifying archiving data completeness
+- **[MANIFEST_README.md](docs/MANIFEST_README.md)** - Manifest configuration documentation
+- **[MANIFEST_REFACTOR.md](docs/MANIFEST_REFACTOR.md)** - Manifest refactoring notes
+
+### Verification Scripts
+
+Two SQL scripts are provided to validate archiving completeness:
+
+- **`verify_archive_completeness.sql`** - Validates all project-scoped data (50+ queries)
+- **`verify_catalog_tables.sql`** - Validates catalog/reference tables (25 queries)
+
+See [docs/VERIFICATION_GUIDE.md](docs/VERIFICATION_GUIDE.md) for usage instructions.
+
 ## Usage
+
 
 ### Basic Database Viewing
 1. **Launch the application** - It will automatically test the database connection

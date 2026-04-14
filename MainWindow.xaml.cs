@@ -394,5 +394,96 @@ namespace MVArchive
         _statusTimer.Start();
       }
     }
+
+    private async void BtnClearArchive_Click(object sender, RoutedEventArgs e)
+    {
+      try
+      {
+        _archiveConfig = ConfigService.Instance.Current;
+        if (_archiveConfig == null || string.IsNullOrWhiteSpace(_archiveConfig.DestinationDatabase))
+        {
+          _loggingService.LogWarning("Archive", "Clear archive attempted without configuration");
+          MessageBox.Show("Please configure archive settings first.", "Archive Not Configured",
+                  MessageBoxButton.OK, MessageBoxImage.Warning);
+          return;
+        }
+
+        // First confirmation
+        var firstWarning = MessageBox.Show(
+          $"WARNING: You are about to delete ALL data from the archive database:\n\n" +
+          $"Database: {_archiveConfig.DestinationDatabase}\n" +
+          $"Host: {_archiveConfig.DestinationHost ?? "localhost"}\n\n" +
+          $"This action cannot be undone!\n\n" +
+          $"Are you sure you want to continue?",
+          "Clear Archive Database - First Warning",
+          MessageBoxButton.YesNo,
+          MessageBoxImage.Warning);
+
+        if (firstWarning != MessageBoxResult.Yes)
+        {
+          _loggingService.LogInfo("Archive", "Clear archive cancelled by user (first warning)");
+          return;
+        }
+
+        // Second confirmation
+        var secondWarning = MessageBox.Show(
+          $"FINAL WARNING!\n\n" +
+          $"This will permanently delete ALL data from:\n{_archiveConfig.DestinationDatabase}\n\n" +
+          $"Type 'YES' to confirm (this is your last chance):",
+          "Clear Archive Database - Final Confirmation",
+          MessageBoxButton.YesNo,
+          MessageBoxImage.Stop);
+
+        if (secondWarning != MessageBoxResult.Yes)
+        {
+          _loggingService.LogInfo("Archive", "Clear archive cancelled by user (second warning)");
+          return;
+        }
+
+        btnClearArchive.IsEnabled = false;
+        txtStatus.Text = "Clearing archive database...";
+
+        try
+        {
+          var connStr = BuildDestinationConnectionString(_archiveConfig);
+          if (string.IsNullOrWhiteSpace(connStr))
+          {
+            throw new InvalidOperationException("Could not build destination connection string");
+          }
+
+          _loggingService.LogWarning("Archive", $"Clearing all data from archive database: {_archiveConfig.DestinationDatabase}");
+
+          await _databaseService.ClearAllDataAsync(connStr);
+
+          txtStatus.Text = "Archive database cleared successfully!";
+          _loggingService.LogInfo("Archive", "Archive database cleared successfully");
+
+          MessageBox.Show("Archive database has been cleared successfully.", "Clear Complete",
+                  MessageBoxButton.OK, MessageBoxImage.Information);
+
+          // Refresh the destination data grid
+          await LoadDestinationProjectsAsync();
+          ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+          _loggingService.LogError("Archive", "Failed to clear archive database", ex.ToString());
+          txtStatus.Text = $"Error clearing archive: {ex.Message}";
+
+          MessageBox.Show($"Failed to clear archive database:\n{ex.Message}", "Clear Archive Error",
+                  MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+          btnClearArchive.IsEnabled = true;
+          _statusTimer.Start();
+        }
+      }
+      catch (Exception ex)
+      {
+        _loggingService.LogError("Archive", "Error in clear archive button click", ex.ToString());
+        MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+      }
+    }
   }
 }

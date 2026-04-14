@@ -125,5 +125,50 @@ namespace MVArchive.Services
 
             return null;
         }
+
+        /// <summary>Clear all data from all tables in the specified database.</summary>
+        public async Task ClearAllDataAsync(string connectionString)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString))
+                throw new ArgumentException("Connection string cannot be empty", nameof(connectionString));
+
+            using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            // Get all table names from the database
+            var tables = new List<string>();
+            using (var command = new SqlCommand(@"
+                SELECT TABLE_NAME
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_TYPE = 'BASE TABLE'
+                AND TABLE_CATALOG = DB_NAME()
+                ORDER BY TABLE_NAME", connection))
+            {
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    tables.Add(reader.GetString(0));
+                }
+            }
+
+            // Disable all foreign key constraints
+            using (var command = new SqlCommand("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'", connection))
+            {
+                await command.ExecuteNonQueryAsync();
+            }
+
+            // Delete all data from each table
+            foreach (var table in tables)
+            {
+                using var command = new SqlCommand($"DELETE FROM [{table}]", connection);
+                await command.ExecuteNonQueryAsync();
+            }
+
+            // Re-enable all foreign key constraints
+            using (var command = new SqlCommand("EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL'", connection))
+            {
+                await command.ExecuteNonQueryAsync();
+            }
+        }
     }
 }
